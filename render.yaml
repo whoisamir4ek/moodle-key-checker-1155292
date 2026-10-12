@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: moodle-key-checker-1155292
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
