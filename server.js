@@ -1,103 +1,13 @@
 import http from 'node:http';
 import { deflateSync, gzip } from 'node:zlib';
 import Busboy from 'busboy';
-
 const PORT = Number(process.env.PORT || 3000);
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type,Accept',
-};
-const crcTable = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-function crc32(buffer) {
-  let c = 0xffffffff;
-  for (const byte of buffer) c = crcTable[(c ^ byte) & 255] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-function pngChunk(type, data) {
-  const body = Buffer.concat([Buffer.from(type), data]);
-  const length = Buffer.alloc(4);
-  const checksum = Buffer.alloc(4);
-  length.writeUInt32BE(data.length);
-  checksum.writeUInt32BE(crc32(body));
-  return Buffer.concat([length, body, checksum]);
-}
-function makePng(width, height) {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header[8] = 8;
-  header[9] = 6;
-  const row = Buffer.alloc(1 + width * 4);
-  row.fill(255, 1);
-  const pixels = Buffer.alloc(row.length * height);
-  for (let y = 0; y < height; y++) row.copy(pixels, y * row.length);
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(pixels)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-function readUpload(req) {
-  return new Promise((resolve, reject) => {
-    let found = false;
-    let tooLarge = false;
-    const chunks = [];
-    let parser;
-    try {
-      parser = Busboy({ headers: req.headers, limits: { files: 1, fileSize: 10485760 } });
-    } catch (error) { reject(error); return; }
-    parser.on('file', (field, stream) => {
-      if (field !== 'file' || found) { stream.resume(); return; }
-      found = true;
-      stream.on('data', chunk => chunks.push(chunk));
-      stream.on('limit', () => { tooLarge = true; });
-      stream.on('error', reject);
-    });
-    parser.on('error', reject);
-    parser.on('finish', () => {
-      if (tooLarge) return reject(new Error('File too large'));
-      resolve(found ? Buffer.concat(chunks) : null);
-    });
-    req.on('error', reject);
-    req.pipe(parser);
-  });
-}
-function sendText(res, status, text) {
-  res.writeHead(status, { 'Content-Type': 'text/plain; charset=UTF-8' });
-  res.end(text);
-}
-
-const server = http.createServer(async (req, res) => {
-  for (const [key, value] of Object.entries(cors)) res.setHeader(key, value);
-  const url = new URL(req.url, 'http://localhost');
-  const path = url.pathname;
-  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
-  if (path === '/' || path === '/login' || path === '/login/') return sendText(res, 200, '1155292');
-  if (path === '/makeimage' || path === '/makeimage/') {
-    const width = Number(url.searchParams.get('width'));
-    const height = Number(url.searchParams.get('height'));
-    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width > 10000 || height > 10000 || width * height > 25000000) return sendText(res, 400, 'Invalid image dimensions');
-    res.writeHead(200, { 'Content-Type': 'image/png' });
-    return res.end(makePng(width, height));
-  }
-  if (path === '/zipper' || path === '/zipper/') {
-    if (req.method !== 'POST') return sendText(res, 405, 'Use POST with multipart/form-data');
-    try {
-      const input = await readUpload(req);
-      if (!input) return sendText(res, 400, 'Expected a file field named file');
-      const output = await new Promise((resolve, reject) => gzip(input, (error, result) => error ? reject(error) : resolve(result)));
-      res.writeHead(200, { 'Content-Type': 'application/gzip', 'Content-Disposition': 'attachment; filename="result.gz"', 'Content-Length': output.length });
-      return res.end(output);
-    } catch (error) {
-      return sendText(res, error.message === 'File too large' ? 413 : 400, 'Unable to process uploaded file');
-    }
-  }
-  return sendText(res, 404, 'Not found');
-});
-server.listen(PORT, '0.0.0.0');
+const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Accept'};
+const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;return c>>>0});
+function crc32(b){let c=0xffffffff;for(const x of b)c=crcTable[(c^x)&255]^(c>>>8);return(c^0xffffffff)>>>0}
+function chunk(type,data){const body=Buffer.concat([Buffer.from(type),data]),len=Buffer.alloc(4),sum=Buffer.alloc(4);len.writeUInt32BE(data.length);sum.writeUInt32BE(crc32(body));return Buffer.concat([len,body,sum])}
+function makePng(width,height,r=255,g=255,b=255){const h=Buffer.alloc(13);h.writeUInt32BE(width,0);h.writeUInt32BE(height,4);h[8]=8;h[9]=6;const row=Buffer.alloc(1+width*4);for(let x=0;x<width;x++){const i=1+x*4;row[i]=r;row[i+1]=g;row[i+2]=b;row[i+3]=255}const raw=Buffer.alloc(row.length*height);for(let y=0;y<height;y++)row.copy(raw,y*row.length);return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',h),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))])}
+function readUpload(req){return new Promise((resolve,reject)=>{let found=false,large=false;const chunks=[];let parser;try{parser=Busboy({headers:req.headers,limits:{files:1,fileSize:10485760}})}catch(e){reject(e);return}parser.on('file',(field,stream)=>{if(field!=='file'||found){stream.resume();return}found=true;stream.on('data',c=>chunks.push(c));stream.on('limit',()=>large=true);stream.on('error',reject)});parser.on('error',reject);parser.on('finish',()=>large?reject(new Error('too large')):resolve(found?Buffer.concat(chunks):null));req.on('error',reject);req.pipe(parser)})}
+function text(res,status,value){res.writeHead(status,{'Content-Type':'text/plain; charset=UTF-8'});res.end(value)}
+const server=http.createServer(async(req,res)=>{for(const[k,v]of Object.entries(cors))res.setHeader(k,v);const u=new URL(req.url,'http://localhost'),p=u.pathname;if(req.method==='OPTIONS'){res.writeHead(204);return res.end()}if(p==='/'||p==='/login'||p==='/login/')return text(res,200,'1155292');if(p==='/makeimage'||p==='/makeimage/'){const w=Number(u.searchParams.get('width')),h=Number(u.searchParams.get('height'));if(!Number.isSafeInteger(w)||!Number.isSafeInteger(h)||w<1||h<1||w>10000||h>10000||w*h>25000000)return text(res,400,'Invalid dimensions');res.writeHead(200,{'Content-Type':'image/png'});return res.end(makePng(w,h))}if(p==='/makecolor'||p==='/makecolor/'){const w=Number(u.searchParams.get('width')),h=Number(u.searchParams.get('height')),r=Number(u.searchParams.get('r')),g=Number(u.searchParams.get('g')),b=Number(u.searchParams.get('b'));if(!Number.isSafeInteger(w)||!Number.isSafeInteger(h)||w<1||h<1||w>10000||h>10000||w*h>25000000||[r,g,b].some(c=>!Number.isInteger(c)||c<0||c>255))return text(res,400,'Invalid dimensions or RGB');res.writeHead(200,{'Content-Type':'image/png'});return res.end(makePng(w,h,r,g,b))}if(p==='/zipper'||p==='/zipper/'){if(req.method!=='POST')return text(res,405,'Use POST');try{const input=await readUpload(req);if(!input)return text(res,400,'Expected file field');const out=await new Promise((resolve,reject)=>gzip(input,(e,v)=>e?reject(e):resolve(v)));res.writeHead(200,{'Content-Type':'application/gzip','Content-Disposition':'attachment; filename="result.gz"','Content-Length':out.length});return res.end(out)}catch(e){return text(res,e.message==='too large'?413:400,'Unable to process file')}}return text(res,404,'Not found')});
+server.listen(PORT,'0.0.0.0');
