@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/api/login" },
+    { "source": "/login", "destination": "/api/login" },
+    { "source": "/login/", "destination": "/api/login" },
+    { "source": "/makeimage", "destination": "/api/makeimage" },
+    { "source": "/makeimage/", "destination": "/api/makeimage" }
+  ]
+}
