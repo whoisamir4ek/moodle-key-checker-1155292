@@ -6,6 +6,8 @@
     { "source": "/makeimage", "destination": "/api/makeimage" },
     { "source": "/makeimage/", "destination": "/api/makeimage" },
     { "source": "/insert", "destination": "/api/insert" },
-    { "source": "/insert/", "destination": "/api/insert" }
+    { "source": "/insert/", "destination": "/api/insert" },
+    { "source": "/zipper", "destination": "/api/zipper" },
+    { "source": "/zipper/", "destination": "/api/zipper" }
   ]
 }
